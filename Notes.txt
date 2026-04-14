@@ -1,0 +1,27 @@
+cluster_id : am6gtzJPRnybM7-BSZj3LQ
+
+kafka-topics : edi-837p-claims, edi-270-eligibility
+
+1. Go to your project directory  # C:\Users\Nusrath\OneDrive\Desktop\Projects\EDI2Insights
+2. Activate virtual environment  # venv\Scripts\activate
+3. Start kafka with Docker  # Open the app manually
+	check if the server is up and running in cmd  # docker info
+	Run your container # docker-compose up -d
+	Then open http://localhost:8080 in your browser — that's the Kafka UI where you'll watch messages arrive live.
+4. Start FASTAPI server to send edi files via api.
+	Before that check for all installations  # pip list
+	uvicorn app.main:app --reload --port 8000
+5.  Send edi files to API
+	Open new terminal
+	curl http://localhost:8000/health
+	# Expected: {"status":"ok","service":"EDI2Insights"}
+	curl -X POST http://localhost:8000/claims/ingest ^
+  -H "X-API-Key: test-key-123" ^
+  -F "file=@C:\Users\Nusrath\OneDrive\Desktop\Projects\EDI2Insights\tests\sample_837p.edi"
+  
+  curl -X POST http://localhost:8000/eligibility/ingest ^
+  -H "X-API-Key: test-key-123" ^
+  -F "file=@C:\Users\Nusrath\OneDrive\Desktop\Projects\EDI2Insights\tests\sample_270.edi"
+  
+6. Start the kafka consumer 
+	python -m app.kafka.consumer   ###### GIVING ERROR
