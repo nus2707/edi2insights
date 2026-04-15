@@ -14,6 +14,7 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_NUM_PARTITIONS: 3
@@ -24,4 +25,7 @@ services:
     ports:
       - "8080:8080"           # browse topics at localhost:8080
     environment:
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:
+      
+      
+      

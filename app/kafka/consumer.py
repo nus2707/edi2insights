@@ -1,42 +1,58 @@
 # app/kafka/consumer.py
 import json
-from confluent_kafka import Consumer, KafkaError
+from confluent_kafka import Consumer, KafkaException, KafkaError
 from app.config import settings
-from app.transformers.to_csv import write_csv
-from app.cloud.s3_uploader import upload_to_s3
+
 
 def run_consumer():
-    consumer = Consumer({
+    consumer_conf = {
         "bootstrap.servers": settings.kafka_bootstrap_servers,
         "group.id": settings.kafka_group_id,
         "auto.offset.reset": "earliest",
-        "enable.auto.commit": False,   # manual commit for safety
-    })
-    consumer.subscribe([
-        settings.kafka_topic_claims,
-        settings.kafka_topic_eligibility,
-    ])
+        "enable.auto.commit": False
+    }
 
-    print("Consumer started — listening for EDI events...")
+    consumer = Consumer(consumer_conf)
+
+    # Subscribe to your actual topics
+    consumer.subscribe(["edi-837p-claims", "edi-270-eligibility"])
+
+    print("Consumer started — waiting for EDI messages...\n")
 
     try:
         while True:
             msg = consumer.poll(timeout=1.0)
+
             if msg is None:
                 continue
             if msg.error():
-                if msg.error().code() != KafkaError._PARTITION_EOF:
-                    print(f"Consumer error: {msg.error()}")
-                continue
+                if msg.error().code() == KafkaError._PARTITION_EOF:
+                    continue
+                else:
+                    raise KafkaException(msg.error())
 
-            payload = json.loads(msg.value().decode("utf-8"))
-            topic   = msg.topic()
+            key = msg.key().decode("utf-8") if msg.key() else None
+            try:
+                value = json.loads(msg.value().decode("utf-8"))
+            except Exception:
+                value = msg.value().decode("utf-8")
 
-            # Route by topic → transform → upload
-            if topic == settings.kafka_topic_claims:
-                csv_path = write_csv(payload, doc_type="claims")
-                upload_to_s3(csv_path, s3_key=f"claims/{payload['claim_id']}.csv")
+            print("=" * 60)
+            print(f"Topic     : {msg.topic()}")
+            print(f"Partition : {msg.partition()}")
+            print(f"Offset    : {msg.offset()}")
+            print(f"Key       : {key}")
+            print("Payload   :")
+            print(json.dumps(value, indent=2))
+            print("=" * 60 + "\n")
 
-            consumer.commit(msg)   # only commit after success
+            consumer.commit(msg)
+
+    except KeyboardInterrupt:
+        print("Consumer stopped.")
     finally:
         consumer.close()
+
+
+if __name__ == "__main__":
+    run_consumer()
