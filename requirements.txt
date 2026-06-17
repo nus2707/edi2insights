@@ -1,11 +1,19 @@
-fastapi==0.95.2
-uvicorn[standard]==0.22.0
-kafka-python==2.0.2
-python-multipart
-pyx12==2.3.2
-boto3==1.26.152
-google-cloud-bigquery==3.10.0
-apache-airflow==2.7.1
-pandas
-numpy
-requests
+# API
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+pydantic-settings>=2.0.0
+
+# Streaming
+confluent-kafka>=2.3.0
+
+# Warehouse (open-source, replaces BigQuery / Redshift)
+duckdb>=0.10.0
+
+# Data processing
+pandas>=2.0.0
+numpy>=1.26.0
+
+# Utilities
+python-dotenv>=1.0.0
+requests>=2.31.0

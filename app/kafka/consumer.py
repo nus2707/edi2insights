@@ -1,58 +1,60 @@
-# app/kafka/consumer.py
 import json
+import logging
 from confluent_kafka import Consumer, KafkaException, KafkaError
 from app.config import settings
+from app.transformers.claims_transformer import store_claim
+from app.transformers.eligibility_transformer import store_inquiry
+
+logger = logging.getLogger(__name__)
 
 
 def run_consumer():
-    consumer_conf = {
+    consumer = Consumer({
         "bootstrap.servers": settings.kafka_bootstrap_servers,
-        "group.id": settings.kafka_group_id,
+        "group.id":          settings.kafka_group_id,
         "auto.offset.reset": "earliest",
-        "enable.auto.commit": False
-    }
-
-    consumer = Consumer(consumer_conf)
-
-    # Subscribe to your actual topics
-    consumer.subscribe(["edi-837p-claims", "edi-270-eligibility"])
-
-    print("Consumer started — waiting for EDI messages...\n")
+        "enable.auto.commit": False,
+    })
+    consumer.subscribe([settings.kafka_topic_claims, settings.kafka_topic_eligibility])
+    logger.info("Consumer started — subscribed to %s and %s",
+                settings.kafka_topic_claims, settings.kafka_topic_eligibility)
 
     try:
         while True:
             msg = consumer.poll(timeout=1.0)
-
             if msg is None:
                 continue
             if msg.error():
                 if msg.error().code() == KafkaError._PARTITION_EOF:
                     continue
-                else:
-                    raise KafkaException(msg.error())
+                raise KafkaException(msg.error())
 
-            key = msg.key().decode("utf-8") if msg.key() else None
             try:
-                value = json.loads(msg.value().decode("utf-8"))
+                payload = json.loads(msg.value().decode("utf-8"))
             except Exception:
-                value = msg.value().decode("utf-8")
+                logger.warning("Could not decode message on %s", msg.topic())
+                consumer.commit(msg)
+                continue
 
-            print("=" * 60)
-            print(f"Topic     : {msg.topic()}")
-            print(f"Partition : {msg.partition()}")
-            print(f"Offset    : {msg.offset()}")
-            print(f"Key       : {key}")
-            print("Payload   :")
-            print(json.dumps(value, indent=2))
-            print("=" * 60 + "\n")
+            topic = msg.topic()
+            try:
+                if topic == settings.kafka_topic_claims:
+                    store_claim(payload)
+                    logger.info("Stored claim %s from Kafka", payload.get("claim_id"))
+                elif topic == settings.kafka_topic_eligibility:
+                    store_inquiry(payload)
+                    logger.info("Stored inquiry %s from Kafka", payload.get("inquiry_id"))
+            except Exception as exc:
+                logger.error("Failed to store message from %s: %s", topic, exc)
 
             consumer.commit(msg)
 
     except KeyboardInterrupt:
-        print("Consumer stopped.")
+        logger.info("Consumer stopped.")
     finally:
         consumer.close()
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
     run_consumer()
